@@ -17,6 +17,29 @@ set -e
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
+# want user pi by default
+want_user=pi
+
+# if wanted user does not have home, find a better user
+if [ -n "`grep -Pom1 "^$want_user(?=:.*/home/)" /etc/passwd`" ] ; then
+    user=$want_user
+else
+    # grab first user from /etc/passwd with a profile in /home
+    user=`grep -Pom1 '^[^:]+(?=:.*/home/)' /etc/passwd`
+fi
+
+# find users home dir
+user_home=`eval ls -1d ~$user`
+
+if [ -z "$user" ] ; then
+    echo "Unable to figure out install user!"
+    exit 2
+fi
+
+if [ -z "$user_home" ] ; then
+    echo "Unable to find home dir for $user!"
+    exit 2
+fi
 
 case "$1" in
     configure)
@@ -45,9 +68,9 @@ dtoverlay=audioinjector-addons' >> /boot/config.txt
 	ASOUNDRC_BACKUP_FN=~/.asoundrc.$DATE
 	echo backing up ~/.asoundrc to $ASOUNDRC_BACKUP_FN
 	[ -f ~/.asoundrc ] && mv ~/.asoundrc $ASOUNDRC_BACKUP_FN
-	ASOUNDRC_BACKUP_FN=/home/pi/.asoundrc.$DATE
-	echo backing up /home/pi/.asoundrc to $ASOUNDRC_BACKUP_FN
-	[ -f ~/.asoundrc ] && mv /home/pi/.asoundrc $ASOUNDRC_BACKUP_FN
+	ASOUNDRC_BACKUP_FN=$user_home/.asoundrc.$DATE
+	echo backing up $user_home/.asoundrc to $ASOUNDRC_BACKUP_FN
+	[ -f $user_home/.asoundrc ] && mv $user_home/.asoundrc $ASOUNDRC_BACKUP_FN
 
 	echo 'pcm.!default {
 #       type hw
@@ -92,13 +115,15 @@ echo 'pcm.!default {
 ctl.!default {
         type hw
         card 0
-}' > ~pi/.asoundrc
+}' > $user_home/.asoundrc
 
 	sudo mv /tmp/asound.conf /etc/asound.conf
 
-  if [ -e ~pi/.config/lxpanel/LXDE-pi/panels/panel ]; then
+  panel_file=$user_home/.config/lxpanel/LXDE-pi/panels/panel
+
+  if [ -e $panel_file ]; then
 	   echo lxpanel\'s volume plugin is disfunctional, disabling it
-	    sed -i 's/\=volumealsa/\=REMOVEvolumealsa/' ~pi/.config/lxpanel/LXDE-pi/panels/panel
+	    sed -i 's/\=volumealsa/\=REMOVEvolumealsa/' $panel_file
       echo
       echo pulse gets in the way we suggest you remove it, please run the following manually :
       echo sudo apt remove pulseaudio
